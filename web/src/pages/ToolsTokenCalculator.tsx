@@ -187,7 +187,9 @@ export default function ToolsTokenCalculator() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-3 py-6">
+    // 全屏背景 + flex 纵向布局：内容区撑满剩余高度，footer 始终在页面最底部
+    <div className="flex min-h-screen flex-col bg-neutral-50 dark:bg-neutral-950">
+      <div className="mx-auto w-full max-w-5xl flex-1 px-3 py-6">
       <div className="mt-2 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-medium text-neutral-900 dark:text-neutral-100">
@@ -364,10 +366,6 @@ export default function ToolsTokenCalculator() {
         </div>
       </div>
 
-      <footer className="mt-6 border-t border-neutral-200 pt-3 text-center text-[11px] text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
-        价格数据仅供参考，请以各服务商官方定价为准；海外模型价格为按当日汇率折算的人民币快照
-      </footer>
-
       {/* 管理登录弹窗 */}
       {passwordOpen && (
         <Modal title="管理登录" onClose={() => setPasswordOpen(false)}>
@@ -416,6 +414,12 @@ export default function ToolsTokenCalculator() {
           onError={(msg) => handleAdminError(new ApiError(0, msg), msg)}
         />
       )}
+      </div>
+
+      {/* 免责声明：独立于内容区，始终位于页面最底部 */}
+      <footer className="border-t border-neutral-200 py-3 text-center text-[11px] text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
+        价格数据仅供参考，请以各服务商官方定价为准；海外模型价格为按当日汇率折算的人民币快照
+      </footer>
     </div>
   )
 }

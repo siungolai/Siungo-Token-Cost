@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -58,7 +59,7 @@ func New(password string) (*Manager, error) {
 // HandleLogin 处理 POST /api/admin/login（body: {"password":"..."}）。
 // 成功：{token, expires_at}；失败：401（连续失败限速后 429）。
 func (m *Manager) HandleLogin(w http.ResponseWriter, r *http.Request) {
-	key := r.RemoteAddr
+	key := clientIP(r)
 	if !m.allow(key) {
 		httpx.WriteError(w, http.StatusTooManyRequests, "尝试过于频繁，请稍后再试")
 		return
@@ -162,6 +163,32 @@ func (m *Manager) clearFailures(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.failures, key)
+}
+
+// clientIP 提取客户端真实 IP 作为限速 key（剥离端口）。
+// 背景：生产形态为 nginx 反代（服务只监听 127.0.0.1），RemoteAddr 恒为回环地址，
+// 且 nginx 默认每个请求新建上游连接 → 端口随机。若直接用 RemoteAddr 做 key，
+// 每个请求都是新 key，5 次限速永不触发（曾为真实缺陷）。
+// 策略：仅当 RemoteAddr 是回环地址（即确认为本机反代转发）时，才信任反代透传的
+// X-Forwarded-For 首个 IP（最接近客户端，nginx 追加在后）或 X-Real-IP；
+// 直连场景（非回环 RemoteAddr）忽略这两个头，避免客户端伪造绕过限速。
+func clientIP(r *http.Request) string {
+	host := r.RemoteAddr
+	if h, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		host = h
+	}
+	ip := net.ParseIP(host)
+	if ip != nil && ip.IsLoopback() {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			if first := strings.TrimSpace(strings.Split(xff, ",")[0]); first != "" {
+				return first
+			}
+		}
+		if xrip := strings.TrimSpace(r.Header.Get("X-Real-IP")); xrip != "" {
+			return xrip
+		}
+	}
+	return host
 }
 
 // ErrNoPassword 表示未设置 ADMIN_PASSWORD 环境变量。

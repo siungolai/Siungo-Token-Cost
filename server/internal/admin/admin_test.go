@@ -23,9 +23,18 @@ func newTestManager(t *testing.T) *Manager {
 // postLogin 发起登录请求，返回响应与解析后的 token。
 func postLogin(t *testing.T, m *Manager, password, remoteAddr string) (*httptest.ResponseRecorder, map[string]any) {
 	t.Helper()
+	return postLoginXFF(t, m, password, remoteAddr, "")
+}
+
+// postLoginXFF 发起登录请求并附加 X-Forwarded-For 头（模拟 nginx 反代透传）。
+func postLoginXFF(t *testing.T, m *Manager, password, remoteAddr, xff string) (*httptest.ResponseRecorder, map[string]any) {
+	t.Helper()
 	body, _ := json.Marshal(map[string]string{"password": password})
 	req := httptest.NewRequest(http.MethodPost, "/api/admin/login", bytes.NewReader(body))
 	req.RemoteAddr = remoteAddr
+	if xff != "" {
+		req.Header.Set("X-Forwarded-For", xff)
+	}
 	rec := httptest.NewRecorder()
 	m.HandleLogin(rec, req)
 	var out map[string]any
@@ -74,6 +83,47 @@ func TestLoginRateLimit(t *testing.T) {
 	rec2, _ := postLogin(t, m, "test-pass", "8.8.8.8:1000")
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("其他来源应 200，得到 %d", rec2.Code)
+	}
+}
+
+// TestLoginRateLimitBehindProxy 反代场景回归测试：nginx 反代下 RemoteAddr 恒为
+// 127.0.0.1 且每次连接端口随机，限速 key 必须取 X-Forwarded-For 的真实客户端 IP，
+// 否则 5 次限速永不触发（曾为真实缺陷，此处防回归）。
+func TestLoginRateLimitBehindProxy(t *testing.T) {
+	m := newTestManager(t)
+	// 模拟 nginx：每次请求新连接（端口随机），XFF 透传同一客户端 IP
+	for i := 0; i < maxFailures; i++ {
+		rec, _ := postLoginXFF(t, m, "wrong", "127.0.0.1:40000", "9.9.9.9")
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("第 %d 次失败应 401，得到 %d", i+1, rec.Code)
+		}
+	}
+	// 第 6 次即使密码正确也应 429（端口变化不影响锁定）
+	rec, _ := postLoginXFF(t, m, "test-pass", "127.0.0.1:40005", "9.9.9.9")
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("反代下锁定后应 429，得到 %d: %s", rec.Code, rec.Body.String())
+	}
+	// 其他客户端（不同 XFF IP）不受影响
+	rec2, _ := postLoginXFF(t, m, "test-pass", "127.0.0.1:40006", "8.8.8.8")
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("其他来源应 200，得到 %d", rec2.Code)
+	}
+}
+
+// TestLoginRateLimitDirectIgnoresXFF 直连场景（RemoteAddr 非回环）不得信任
+// X-Forwarded-For 头，防止客户端伪造头绕过限速。
+func TestLoginRateLimitDirectIgnoresXFF(t *testing.T) {
+	m := newTestManager(t)
+	for i := 0; i < maxFailures; i++ {
+		rec, _ := postLoginXFF(t, m, "wrong", "1.2.3.4:5000", "9.9.9.9")
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("第 %d 次失败应 401，得到 %d", i+1, rec.Code)
+		}
+	}
+	// 伪造不同 XFF 也不应绕过（key 取 RemoteAddr 的 IP）
+	rec, _ := postLoginXFF(t, m, "test-pass", "1.2.3.4:6000", "7.7.7.7")
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("直连场景伪造 XFF 不应绕过限速，得到 %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

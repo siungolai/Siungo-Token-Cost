@@ -86,16 +86,23 @@ func main() {
 }
 
 // handleStatic 服务 go:embed 的静态资源；未命中的非 /api 路径回退到 index.html（SPA 路由）。
+// 兼容 /token-cost/ 前缀：本地直连（无 nginx）时 HTML 引用的资源带此前缀，剥离后命中真实文件；
+// 生产 nginx 已剥离前缀（proxy_pass 末尾 /），此处剥离幂等，两种形态均可用。
 // 注意：embed 文件路径带 static/ 前缀（//go:embed static 保留目录名）。
 // 缓存策略：/assets/*（Vite 产物带内容 hash）长缓存 immutable；index.html 与 SPA fallback no-cache。
 // 文本类资源按 Accept-Encoding 协商 gzip 压缩，减少传输量（图片/字体本身已压缩，不重复压）。
 func handleStatic() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// 公开工具站：Vite 构建的 index.html 给资源带 crossorigin 属性（CORS 模式加载）。
+		// 无此头时浏览器会拦截样式表/脚本（同源也不例外），导致页面无样式。放行任意来源。
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		p := strings.TrimPrefix(r.URL.Path, "/")
 		if strings.HasPrefix(p, "api/") {
 			http.NotFound(w, r) // 未注册的 API 路径不回落前端
 			return
 		}
+		// 剥离可选的 /token-cost/ 前缀（幂等：无前缀路径不受影响）
+		p = strings.TrimPrefix(p, "token-cost/")
 		original := p
 		if p == "" {
 			p = "index.html"

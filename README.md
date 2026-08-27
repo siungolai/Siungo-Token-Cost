@@ -1,95 +1,169 @@
-# siungo-token-cost — AI Token 价格计算器（公开工具站）
+# siungo-token-cost
 
-公开的 AI Token 价格计算工具：按 **¥/1M tokens** 三档价格（命中输入 / 未命中输入 / 输出）估算多模型成本，支持缓存命中率、谷峰时段、多模型对比。无需登录，任何访客可直接使用。
+> Public, self-hosted AI token price calculator: estimate LLM API costs in **CNY (¥) per 1M tokens** — cached input / uncached input / output — with cache-hit rates, peak-hour pricing and multi-model comparison.
 
-- 技术栈：后端 Go 1.26 + SQLite（纯 Go 驱动，无 CGO）；前端 React 19 + TypeScript + Tailwind CSS 4（Vite）
-- 部署形态：单二进制（前端 go:embed 内嵌）+ systemd + nginx 同域子路径 `/token-cost/`
-- 访问权限：**计算公开**；模型/价格增删改需管理密码（`ADMIN_PASSWORD`，缺失拒绝启动）
+[Features](#features) · [Quick Start](#quick-start) · [Build](#build) · [Deploy](#deploy) · [API](#api) · [Configuration](#configuration) · [License](#license)
 
-## 目录结构
+**中文版**：[README.zh-CN.md](README.zh-CN.md)
 
-```
-server/                 Go 后端（main.go + internal/{store,tokencalc,admin,httpx}）
-web/                    前端（Vite + React 单页应用）
-scripts/                build.sh / deploy.sh / systemd 单元 / nginx 片段
-data/                   运行时数据库（token-cost.db，自动创建，勿提交）
-```
+---
 
-## 本地开发
+## Overview
 
-```powershell
-# 后端（需先设置管理密码；数据库自动建表 + 空库自动填充种子价格表）
-$env:ADMIN_PASSWORD = "你的管理密码"
-& server\token-cost-server.exe -addr=127.0.0.1:8089 -data=data\token-cost.db
+A complete, independently deployable tool site:
 
-# 前端（dev 模式，/api 自动代理到 8089；访问 http://localhost:5173/token-cost/）
-cd web
-npm install --cache ..\.npm-cache
-npm run dev
-```
+- **Visitors need no login** — calculation is fully public.
+- **Write operations** (model / price management) require an admin password with a short-lived session token.
+- Ships as a **single static binary** (frontend embedded via `go:embed`) plus systemd and nginx as a sub-path reverse proxy.
 
-> Windows 注意：npm 缓存必须指工作区（写用户 AppData 会被环境限制拒绝）；Go 构建需 `GOCACHE/GOMODCACHE` 指工作区 + `GOPROXY=https://goproxy.cn,direct`（build.sh 已内置）。
+## Features
 
-## 构建与部署
+- **Three price tiers per model**: cached input / uncached input / output, in ¥ per 1M tokens (0 falls back to the base price)
+- **Cache hit rate**: default per model (0–100), overridable per calculation
+- **Peak / off-peak pricing**: default peak window 22:00–08:00, custom windows supported (cross-midnight OK); priority: custom price > peak price > base price
+- **Multi-model comparison**: pick several models, the first is the main one, the rest are compared with cost ranking (cheapest first)
+- **Cost breakdown**: total cost card, peak-hour banner, per-model details (hit/miss/output, cache savings, peak surcharge), comparison table, copy-result button
+- **File upload estimation**: upload a text file (≤ 10 MB) for a rough token estimate (~3 chars/token)
+- **Local scenarios**: save/apply/delete/favorite parameter presets in the visitor's browser (`localStorage`) — nothing is sent to the server
+- **Admin mode**: hidden behind a small ⚙ button; add / edit / **delete** models, manage peak & custom price configs
+- **Dark mode**: follows the system preference, manual override supported
 
-### 1. 本地构建（一键）
+## Tech Stack
+
+| Layer | Choice |
+|---|---|
+| Backend | Go (stdlib `net/http`, no framework) + SQLite via `modernc.org/sqlite` (pure Go, no CGO) |
+| Frontend | React 19 + TypeScript + Tailwind CSS 4 + Vite |
+| Deploy | Single Linux binary (frontend embedded) + systemd + nginx at sub-path `/token-cost/` |
+
+## Quick Start (local development)
+
+### 1. Backend
 
 ```bash
-bash scripts/build.sh        # Windows 用 "C:\Program Files\Git\bin\bash.exe" scripts/build.sh
-# 产物：server/bin/token-cost-server（Linux amd64 单二进制，内嵌前端）
+cd server
+ADMIN_PASSWORD='replace-with-a-strong-password' go run . -addr=127.0.0.1:8089 -data=../data/token-cost.db
 ```
 
-### 2. 服务器首次初始化（SSH）
+- The server **refuses to start** without `ADMIN_PASSWORD`.
+- On first start it creates the database and seeds **4 starter models** (DeepSeek V4-Flash/Pro, Kimi K3, GLM-5.3) — idempotent, skipped if data already exists.
+- Health check: `curl http://127.0.0.1:8089/api/health`
+
+### 2. Frontend
+
+```bash
+cd web
+npm install
+npm run dev
+# open http://localhost:5173/token-cost/  (/api is proxied to :8089)
+```
+
+### Windows notes
+
+- npm cache must point inside the workspace: `npm install --cache ..\.npm-cache`
+- Go builds need workspace-local caches + a proxy mirror: `GOCACHE`/`GOMODCACHE` → workspace, `GOPROXY=https://goproxy.cn,direct` (already built into `scripts/build.sh`)
+- Run `.sh` scripts with Git Bash, e.g. `"C:\Program Files\Git\bin\bash.exe" scripts/build.sh`
+
+## Build
+
+```bash
+bash scripts/build.sh
+# produces server/bin/token-cost-server — a linux/amd64 single binary with the frontend embedded
+```
+
+The script runs `vite build` → syncs `web/dist` to `server/static` → cross-compiles the Go binary (no CGO).
+
+> ⚠️ Frontend changes only take effect after a full rebuild — `go:embed` snapshots `server/static` at compile time.
+
+## Deploy (production)
+
+```
+Internet → nginx:443 (https://your.domain/token-cost/)
+             └→ reverse proxy (strips the /token-cost prefix)
+                  └→ siungo-token-cost.service (systemd, listens on 127.0.0.1:8089)
+                        └→ SQLite: /opt/siungo-token-cost/data/token-cost.db
+```
+
+### 0. Prerequisites
+
+- A server with **systemd + nginx**, and SSH access configured as an alias. `scripts/deploy.sh` uses the alias `siungo` (change it at the top of the script if needed):
+
+  ```text
+  # ~/.ssh/config
+  Host siungo
+      HostName your-server.example.com
+      User your-deploy-user
+  ```
+
+- A domain with a TLS certificate for the nginx site.
+
+### 1. First-time server init
 
 ```bash
 REMOTE_DIR=/opt/siungo-token-cost
 ssh siungo "sudo mkdir -p $REMOTE_DIR/{bin,data} && sudo chown -R www-data:www-data $REMOTE_DIR"
-ssh siungo "echo 'ADMIN_PASSWORD=替换为强密码' | sudo tee $REMOTE_DIR/.env && sudo chown www-data:www-data $REMOTE_DIR/.env && sudo chmod 600 $REMOTE_DIR/.env"
+ssh siungo "echo 'ADMIN_PASSWORD=replace-with-a-strong-password' | sudo tee $REMOTE_DIR/.env && sudo chown www-data:www-data $REMOTE_DIR/.env && sudo chmod 600 $REMOTE_DIR/.env"
 ```
 
-### 3. 部署（后续更新）
+### 2. Deploy (and for every update)
 
 ```bash
 bash scripts/deploy.sh
+# builds locally, rsyncs the binary + systemd unit, (re)starts the service, runs a health check
 ```
 
-### 4. nginx 接入
+### 3. nginx
 
-把 `scripts/nginx-token-cost.conf` 的 `location /token-cost/` 块复制进主站 443 server 块，`nginx -s reload`。反代剥离前缀，后端无感知。
+Copy the `location /token-cost/ { ... }` block from `scripts/nginx-token-cost.conf` into the main 443 `server` block, then `nginx -s reload`. The trailing `/` in `proxy_pass http://127.0.0.1:8089/;` strips the prefix, so the Go server stays prefix-agnostic.
 
-### 5. 验证（公网验收清单）
+## API
 
-- [ ] 浏览器打开 `https://<域名>/token-cost/` → 页面加载，模型列表显示种子数据
-- [ ] 选模型 → 输入 tokens → 计算 → 结果卡 + 分项明细正常；多选出现对比排名表
-- [ ] 上传文本文件可估算 tokens；「复制结果」可用
-- [ ] 谷峰时段默认 22:00-8:00，自定义时段生效
-- [ ] 保存场景 → 刷新页面 → 场景仍在（存本机浏览器 localStorage）
-- [ ] 手机浏览器单列布局正常
-- [ ] 点「⚙ 管理」→ 错误密码被拒（连续 5 次限速）；正确密码进入管理模式
-- [ ] 管理模式：新建/编辑/删除模型（删除需确认，价格级联删除）；峰值/自定义价配置
-- [ ] 未带管理 token 直接调写接口（如 POST /api/models）返回 401
-- [ ] `systemctl is-active siungo-token-cost` 为 active；服务崩溃自动重启
-- [ ] `ADMIN_PASSWORD` 未设置时服务拒绝启动（日志有明确报错）
+Base path: `/api` (behind nginx: `/token-cost/api`).
 
-## 管理说明
+### Public (no auth)
 
-- **管理密码**：环境变量 `ADMIN_PASSWORD`（服务器 `.env` 文件），bcrypt 校验，登录后签发 24h 有效 token
-- **种子价格表**：空库首次启动自动写入 4 条已核实模型（DeepSeek V4-Flash/Pro、Kimi K3、GLM-5.3），其余服务商需在管理模式手动添加；价格是快照，官方调价后请及时在管理模式更新
-- **场景预设**：访客浏览器 localStorage，与服务器无关
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | Health check |
+| GET | `/models` | List models with all price configs |
+| GET | `/models/{id}` | Single model detail |
+| POST | `/calculate-price` | Price calculation (supports `compare_model_ids`) |
 
-## 备份与回滚
+Example request:
 
-- **备份**：数据库为单文件 `data/token-cost.db`（WAL 模式），停服拷贝或直接复制 db + -wal/-shm 三件套即可
-- **回滚**：`git log` 找到上一版本 → `git revert` 或手动替换 `server/bin/token-cost-server` → `systemctl restart siungo-token-cost`。数据库结构迁移为幂等设计，旧二进制可安全读新库
+```json
+{
+  "model_id": 1,
+  "input_tokens": 1000000,
+  "output_tokens": 200000,
+  "cache_hit_rate": null,
+  "compare_model_ids": [2, 3],
+  "use_custom_hours": false
+}
+```
 
-## 已知限制（v1）
+### Admin (requires `Authorization: Bearer <token>`)
 
-- 种子价格为 2026-08-27 快照，无自动同步；官方调价需手动更新
-- 海外模型人民币价按当日汇率（1 USD ≈ 6.72）折算，仅标注日期不随汇率浮动
-- 文件上传 token 估算为粗略值（约 3 字符/token），非官方 tokenizer
-- 单用户价格库，无多用户/权限体系（公开工具定位）
+| Method | Path | Description |
+|---|---|---|
+| POST | `/admin/login` | Login, body `{"password":"..."}` → `{token, expires_at}` |
+| POST | `/models` | Create model |
+| PUT / DELETE | `/models/{id}` | Update / delete model (cascades prices) |
+| GET / POST | `/models/{id}/prices` | List / create price configs |
+| PUT / DELETE | `/models/{id}/prices/{priceId}` | Update / delete a price config |
 
-## 文档
+## Configuration
 
-- 策划案：`.doc/siungo-token-cost-独立版策划案.md`（主项目内）
-- 开发切片：`.scratch/siungo-token-cost/issues/01~07`
+| Env var | Required | Default | Description |
+|---|---|---|---|
+| `ADMIN_PASSWORD` | **yes** | — | Admin password. Server refuses to start without it. Verified with bcrypt; login returns a 24h HMAC-signed token. |
+
+All other settings are flags: `-addr` (default `127.0.0.1:8089`) and `-data` (default `data/token-cost.db`).
+
+## License
+
+[Apache-2.0](LICENSE) © 2026 Siungo
+
+---
+
+*PRs and issues welcome.*
