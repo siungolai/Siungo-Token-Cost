@@ -1,0 +1,23 @@
+# Go 构建产物
+server/token-cost-server.exe
+server/studio-test.exe
+server/*.exe
+server/*.exe~
+server/static/
+server/bin/
+
+# 数据（本地数据库与 WAL）
+data/
+
+# 构建缓存（工作区隔离，避免写用户目录）
+.npm-cache/
+.gocache/
+.gomod/
+
+# 前端
+node_modules/
+web/dist/
+
+# 编辑器/系统
+.DS_Store
+Thumbs.db

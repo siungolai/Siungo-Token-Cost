@@ -1,0 +1,15 @@
+[Unit]
+Description=Siungo Token Cost - AI Token 价格计算器
+After=network.target
+
+[Service]
+User=www-data
+WorkingDirectory=/opt/siungo-token-cost
+# 管理密码等敏感配置放 .env（不在代码仓库），缺失则服务拒绝启动
+EnvironmentFile=/opt/siungo-token-cost/.env
+ExecStart=/opt/siungo-token-cost/bin/token-cost-server -addr 127.0.0.1:8089 -data /opt/siungo-token-cost/data/token-cost.db
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
