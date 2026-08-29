@@ -23,8 +23,10 @@ Health check: `curl http://127.0.0.1:8089/api/health`
 cd web
 npm install
 npm run dev
-# open http://localhost:5173/token-cost/  (/api is proxied to :8089)
+# open http://localhost:5173/friends/token-cost/  (/api is proxied to :8089)
 ```
+
+> **Sub-path deployment**: `base` in `web/vite.config.ts` must match your nginx location (e.g. `https://www.siungo.top/friends/token-cost/`). The API client resolves `/api` from the same base, so requests stay within the sub-path and are not caught by other `/api` reverse-proxy rules.
 
 ## License
 

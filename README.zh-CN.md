@@ -23,8 +23,10 @@ ADMIN_PASSWORD='替换为强密码' go run . -addr=127.0.0.1:8089 -data=../data/
 cd web
 npm install
 npm run dev
-# 访问 http://localhost:5173/token-cost/ （/api 自动代理到 8089）
+# 访问 http://localhost:5173/friends/token-cost/ （/api 自动代理到 8089）
 ```
+
+> **子路径部署**：`web/vite.config.ts` 的 `base` 必须与 nginx location 一致（如 `https://www.siungo.top/friends/token-cost/`）。API 客户端从同一 base 解析 `/api`，请求始终带子路径前缀，不会被站点其他 `/api` 反代规则接管。
 
 ## 许可证
 

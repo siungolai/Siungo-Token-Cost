@@ -169,9 +169,9 @@ function PriceRow({
         </span>
       </div>
       <div className="flex flex-wrap items-end gap-2">
-        <PriceField label="命中输入" value={hit} onChange={setHit} placeholder="0.07" />
-        <PriceField label="未命中输入" value={miss} onChange={setMiss} placeholder="0.14" />
-        <PriceField label="输出" value={out} onChange={setOut} placeholder="0.28" />
+        <PriceField label="命中输入" value={hit} onChange={setHit} placeholder="0.47" />
+        <PriceField label="未命中输入" value={miss} onChange={setMiss} placeholder="0.94" />
+        <PriceField label="输出" value={out} onChange={setOut} placeholder="1.88" />
       </div>
     </div>
   )
@@ -322,22 +322,22 @@ export default function ModelManageModal({
           </p>
           <div className="flex flex-wrap items-end gap-2">
             <PriceField
-              label="未命中输入"
-              value={form.inputMissPrice}
-              onChange={(v) => set({ inputMissPrice: v })}
-              placeholder="0.14"
-            />
-            <PriceField
               label="命中输入（可选）"
               value={form.inputHitPrice}
               onChange={(v) => set({ inputHitPrice: v })}
-              placeholder="0.07"
+              placeholder="0.47"
+            />
+            <PriceField
+              label="未命中输入"
+              value={form.inputMissPrice}
+              onChange={(v) => set({ inputMissPrice: v })}
+              placeholder="0.94"
             />
             <PriceField
               label="输出"
               value={form.outputPrice}
               onChange={(v) => set({ outputPrice: v })}
-              placeholder="0.28"
+              placeholder="1.88"
             />
           </div>
           <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
@@ -424,9 +424,9 @@ export default function ModelManageModal({
                 </button>
               </div>
               <div className="flex flex-wrap items-end gap-2">
-                <PriceField label="命中输入" value={newHit} onChange={setNewHit} placeholder="0.1" />
-                <PriceField label="未命中输入" value={newMiss} onChange={setNewMiss} placeholder="0.2" />
-                <PriceField label="输出" value={newOut} onChange={setNewOut} placeholder="0.4" />
+                <PriceField label="命中输入" value={newHit} onChange={setNewHit} placeholder="0.5" />
+                <PriceField label="未命中输入" value={newMiss} onChange={setNewMiss} placeholder="1" />
+                <PriceField label="输出" value={newOut} onChange={setNewOut} placeholder="2" />
               </div>
             </div>
           </div>

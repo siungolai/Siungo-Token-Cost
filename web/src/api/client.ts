@@ -22,6 +22,11 @@ export class ApiError extends Error {
   }
 }
 
+// API 基址：与 vite base（部署子路径）保持一致。
+// 子路径部署时必须以 BASE_URL 前缀请求（如 /friends/token-cost/api/...），
+// 否则会被站点其他 /api 反代规则接管导致 404。
+const API_BASE = `${import.meta.env.BASE_URL}api`
+
 export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -33,7 +38,7 @@ export async function request<T>(method: string, path: string, body?: unknown): 
 
     let res: Response
     try {
-      res = await fetch(`/api${path}`, {
+      res = await fetch(`${API_BASE}${path}`, {
         method,
         headers,
         signal: controller.signal,

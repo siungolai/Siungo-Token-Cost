@@ -418,7 +418,7 @@ export default function ToolsTokenCalculator() {
 
       {/* 免责声明：独立于内容区，始终位于页面最底部 */}
       <footer className="border-t border-neutral-200 py-3 text-center text-[11px] text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
-        价格数据仅供参考，请以各服务商官方定价为准；海外模型价格为按当日汇率折算的人民币快照
+        所有价格均为人民币（¥/1M tokens），直接填写、无需换算；价格数据仅供参考，请以各服务商官方定价为准
       </footer>
     </div>
   )
