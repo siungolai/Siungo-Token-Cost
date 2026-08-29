@@ -1,8 +1,21 @@
 # siungo-token-cost
 
-> Public, self-hosted AI token price calculator: estimate LLM API costs in **CNY (¥) per 1M tokens** — cached input / uncached input / output — with cache-hit rates, peak-hour pricing and multi-model comparison.
+> Public, self-hosted AI token price calculator: estimate LLM API costs in **CNY (¥) per 1M tokens** — cached input / uncached input / output — with cache-hit rates, manual peak/off-peak toggle, day/night theme and multi-model comparison tables.
 
 **中文版**：[README.zh-CN.md](README.zh-CN.md)
+
+## Screenshot
+
+![siungo-token-cost](screenshot.png)
+
+## Usage
+
+1. **Select models** — multi-select enabled; the first model is the main one, the rest are compared against it.
+2. **Enter usage** — input / output token counts, or estimate input from a text file.
+3. **Choose peak mode** — Auto (follows server time; peak hours 22:00–08:00 by default) / Peak / Off-peak.
+4. **Calculate** — check the total cost, the per-model breakdown table (cached input / uncached input / output / cache savings / effective cost) and the cost ranking.
+5. **Save scenarios** — keep frequently used model + usage combos in your browser.
+6. **Admin** — click ⚙ to sign in and add / edit / delete models and price tiers; changes apply to visitors immediately.
 
 ## Quick Start
 
@@ -10,7 +23,7 @@
 
 ```bash
 cd server
-ADMIN_PASSWORD='replace-with-a-strong-password' go run . -addr=127.0.0.1:8089 -data=../data/token-cost.db
+ADMIN_PASSWORD='replace-with-a-strong-password' go run . -addr 127.0.0.1:8089 -data ../data/token-cost.db
 ```
 
 The server **refuses to start** without `ADMIN_PASSWORD`. On first start it creates the database and seeds 4 starter models (DeepSeek V4-Flash/Pro, Kimi K3, GLM-5.3) — idempotent, skipped if data already exists.

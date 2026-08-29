@@ -26,7 +26,7 @@ function fmtPrice(v: number): string {
   return v.toFixed(3).replace(/\.?0+$/, '')
 }
 
-// 单行模型项（展示组件；外层 div 承担选择，内部独立按钮避免嵌套交互元素）
+// 单行模型项（紧凑布局：名称/服务商与价格横排，同框容纳更多模型；外层 div 承担选择，内部独立按钮避免嵌套交互元素）
 function ModelRow({
   model,
   active,
@@ -39,6 +39,7 @@ function ModelRow({
   onEdit?: (m: AIModelWithPrices) => void
 }) {
   const peak = model.prices.find((p) => p.price_type === 'peak' && p.is_active)
+  const hasHitPrice = model.base_input_hit_price > 0
   return (
     <div
       role="option"
@@ -51,77 +52,69 @@ function ModelRow({
         }
       }}
       tabIndex={0}
-      className={`group flex w-full cursor-pointer items-start justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+      className={`group flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors ${
         active
           ? 'border-primary bg-surface-alt'
           : 'border-border bg-surface hover:border-text-secondary'
       }`}
     >
-      <span className="flex min-w-0 items-start gap-2">
-        {/* 多选勾选视觉 */}
-        <span
-          aria-hidden="true"
-          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
-            active
-              ? 'border-primary bg-primary text-white dark:text-[#1a1a1a]'
-              : 'border-border bg-surface dark:border-text-secondary dark:bg-surface-alt'
-          }`}
-        >
-          {active ? '✓' : ''}
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-medium text-text-primary">
-            {model.name}
-          </span>
-          <span className="mt-0.5 block text-xs text-text-secondary">
-            {model.provider}
-            {model.cache_hit_rate > 0 && (
-              <span className="ml-1.5 rounded bg-sky-100 px-1 py-0.5 text-[10px] text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
-                命中率 {model.cache_hit_rate}%
-              </span>
-            )}
-            {peak && (
-              <span
-                className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                title={`峰值价：命中 ¥${peak.input_hit_price}/M · 未命中 ¥${peak.input_miss_price}/M · 输出 ¥${peak.output_price}/M（${peak.time_range}）`}
-              >
-                峰值价
-              </span>
-            )}
-          </span>
-        </span>
+      {/* 多选勾选视觉 */}
+      <span
+        aria-hidden="true"
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
+          active
+            ? 'border-primary bg-primary text-white dark:text-[#1a1a1a]'
+            : 'border-border bg-surface dark:border-text-secondary dark:bg-surface-alt'
+        }`}
+      >
+        {active ? '✓' : ''}
       </span>
-      <span className="flex shrink-0 items-center gap-2">
-        <span className="text-right text-xs text-text-secondary">
-          <span className="block">
-            <span className="text-text-secondary">未命中 </span>¥
-            {fmtPrice(model.base_input_price)}/M
-          </span>
-          {model.base_input_hit_price > 0 && (
-            <span className="mt-0.5 block">
-              <span className="text-emerald-500 dark:text-emerald-400">命中 </span>¥
-              {fmtPrice(model.base_input_hit_price)}/M
+      {/* 模型名 + 服务商/徽章（min-w-0 + truncate 防挤压价格区） */}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-text-primary">
+          {model.name}
+        </span>
+        <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-secondary">
+          <span className="truncate">{model.provider}</span>
+          {model.cache_hit_rate > 0 && (
+            <span className="shrink-0 rounded bg-sky-100 px-1 py-0.5 text-[10px] text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
+              命中率 {model.cache_hit_rate}%
             </span>
           )}
-          <span className="mt-0.5 block">
-            <span className="text-text-secondary">输出 </span>¥
-            {fmtPrice(model.base_output_price)}/M
-          </span>
+          {peak && (
+            <span
+              className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+              title={`峰值价：命中 ¥${peak.input_hit_price}/M · 未命中 ¥${peak.input_miss_price}/M · 输出 ¥${peak.output_price}/M（${peak.time_range}）`}
+            >
+              峰值价
+            </span>
+          )}
         </span>
-        {onEdit && (
-          <button
-            type="button"
-            aria-label={`编辑 ${model.name}`}
-            className="rounded px-1.5 py-0.5 text-xs text-text-secondary opacity-0 hover:bg-surface-alt hover:text-text-primary focus:opacity-100 group-hover:opacity-100"
-            onClick={(e) => {
-              e.stopPropagation()
-              onEdit(model)
-            }}
-          >
-            编辑
-          </button>
-        )}
       </span>
+      {/* 价格单行横排（命中绿色区分，其余灰色；无命中价配置时省略命中段） */}
+      <span className="shrink-0 text-right text-[11px] leading-4 tabular-nums">
+        {hasHitPrice && (
+          <span className="text-emerald-500 dark:text-emerald-400">
+            命中 ¥{fmtPrice(model.base_input_hit_price)} ·{' '}
+          </span>
+        )}
+        <span className="text-text-secondary">
+          未命中 ¥{fmtPrice(model.base_input_price)} · 输出 ¥{fmtPrice(model.base_output_price)}
+        </span>
+      </span>
+      {onEdit && (
+        <button
+          type="button"
+          aria-label={`编辑 ${model.name}`}
+          className="rounded px-1.5 py-0.5 text-xs text-text-secondary opacity-0 hover:bg-surface-alt hover:text-text-primary focus:opacity-100 group-hover:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation()
+            onEdit(model)
+          }}
+        >
+          编辑
+        </button>
+      )}
     </div>
   )
 }
@@ -189,7 +182,7 @@ export default function ModelSelector({
           {models.length === 0 ? '还没有模型，先添加一个吧' : '没有匹配的模型'}
         </p>
       ) : (
-        <ul role="listbox" aria-label="模型列表（可多选）" className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+        <ul role="listbox" aria-label="模型列表（可多选）" className="max-h-[400px] space-y-1.5 overflow-y-auto pr-1">
           {filtered.map((m) => (
             <li key={m.id}>
               <ModelRow

@@ -205,7 +205,7 @@ export default function ToolsTokenCalculator() {
   return (
     // 全屏背景 + flex 纵向布局：内容区撑满剩余高度，footer 始终在页面最底部
     <div className="flex min-h-screen flex-col bg-surface">
-      <div className="mx-auto w-full max-w-5xl flex-1 px-3 py-6">
+      <div className="mx-auto w-full max-w-6xl flex-1 px-3 py-6">
       <div className="mt-2 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-medium text-text-primary">
@@ -251,7 +251,8 @@ export default function ToolsTokenCalculator() {
         </p>
       )}
 
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+      {/* 左 5 : 右 7 布局：右栏更宽，分项明细表格可保持原字号完整显示，右侧组件跟随栏宽 */}
+      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[5fr_7fr]">
         {/* 左：输入区 */}
         <div className="space-y-3">
           <section
@@ -269,7 +270,8 @@ export default function ToolsTokenCalculator() {
               onToggle={toggleModel}
               showAdd={adminMode}
               onAddClick={() => setManageModel('new')}
-              onEditModel={(m) => setManageModel(m)}
+              // 编辑按钮仅管理模式可用：非管理员不传回调，行内「编辑」按钮完全不渲染
+              onEditModel={adminMode ? (m) => setManageModel(m) : undefined}
             />
           </section>
 

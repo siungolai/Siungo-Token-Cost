@@ -1,39 +1,10 @@
 import { useState } from 'react'
 import type { CalculatePriceResult } from '../../api/client'
+import BreakdownTable from './BreakdownTable'
 import ComparisonTable from './ComparisonTable'
 import { buildResultText, copyText, fmtMoney, fmtPct } from './format'
 
-// 金额/百分比展示行（标签 + 值 + 可选强调色）
-function Row({
-  label,
-  value,
-  strong,
-  hint,
-}: {
-  label: string
-  value: string
-  strong?: boolean
-  hint?: string
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 py-1">
-      <span className="text-xs text-text-secondary" title={hint}>
-        {label}
-      </span>
-      <span
-        className={`shrink-0 tabular-nums ${
-          strong
-            ? 'text-sm font-medium text-text-primary'
-            : 'text-xs text-text-primary'
-        }`}
-      >
-        {value}
-      </span>
-    </div>
-  )
-}
-
-// 价格结果：总成本 + 全选模型分项明细 + 峰值状态 + 对比表 + 复制导出（纯展示组件）
+// 价格结果：总成本 + 分项明细表格（行=模型，列=成本项）+ 峰值状态 + 对比表 + 复制导出（纯展示组件）
 export default function PriceResult({ result }: { result: CalculatePriceResult }) {
   const [copied, setCopied] = useState(false)
   const b = result.breakdown
@@ -58,67 +29,6 @@ export default function PriceResult({ result }: { result: CalculatePriceResult }
     }
   }
 
-  // 渲染单个模型的分项明细（复用主模型/对比模型）
-  const renderBreakdown = (
-    name: string,
-    breakdown: CalculatePriceResult['breakdown'],
-    cacheInfo: CalculatePriceResult['cache_info'],
-    isMain: boolean,
-  ) => (
-    <div
-      key={name}
-      className={`rounded-lg border p-4 ${
-        isMain
-          ? 'border-border bg-surface dark:bg-surface-alt'
-          : 'border-border bg-surface-alt/60'
-      }`}
-    >
-      <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <h4 className="truncate text-xs font-medium text-text-secondary">
-          {name}
-          {isMain && <span className="ml-1.5 text-[10px] text-text-secondary">（当前）</span>}
-        </h4>
-        <span className="shrink-0 text-sm font-medium tabular-nums text-text-primary">
-          {fmtMoney(breakdown.effective_cost)}
-        </span>
-      </div>
-      <Row label="输入成本（缓存命中）" value={fmtMoney(breakdown.input_hit_base_cost)} />
-      <Row label="输入成本（缓存未命中）" value={fmtMoney(breakdown.input_miss_base_cost)} />
-      <Row label="输出成本" value={fmtMoney(breakdown.output_base_cost)} />
-      {breakdown.peak_surcharge !== 0 && (
-        <Row label="峰值溢价" value={`+${fmtMoney(breakdown.peak_surcharge)}`} />
-      )}
-      <Row
-        label="缓存节省"
-        value={`−${fmtMoney(cacheInfo.savings)}`}
-        strong
-        hint={`命中率 ${fmtPct(cacheInfo.hit_rate)}，命中 ${cacheInfo.hit_tokens.toLocaleString()} tokens，节省 ${fmtPct(cacheInfo.savings_percentage)}`}
-      />
-      <div className="mt-1 border-t border-border pt-2">
-        <Row label="有效成本" value={fmtMoney(breakdown.effective_cost)} strong />
-      </div>
-      {/* 缓存节省可视化 */}
-      <div className="mt-2">
-        <div
-          className="h-1.5 w-full overflow-hidden rounded-full bg-surface-alt dark:bg-[#1a1a1a]"
-          role="img"
-          aria-label={`缓存节省占无缓存成本的 ${fmtPct(cacheInfo.savings_percentage)}`}
-        >
-          <div
-            className="h-full rounded-full bg-emerald-500 transition-all"
-            style={{ width: `${Math.min(100, Math.max(0, cacheInfo.savings_percentage))}%` }}
-          />
-        </div>
-        <p className="mt-1 text-[11px] text-text-secondary">
-          缓存节省 {fmtMoney(cacheInfo.savings)}，占无缓存输入成本{' '}
-          {cacheInfo.hit_rate > 0 ? fmtPct(cacheInfo.savings_percentage) : '0%'}（命中率{' '}
-          {fmtPct(cacheInfo.hit_rate)}，命中 {cacheInfo.hit_tokens.toLocaleString()} / 未命中{' '}
-          {cacheInfo.miss_tokens.toLocaleString()} tokens）
-        </p>
-      </div>
-    </div>
-  )
-
   return (
     <div className="space-y-3">
       {/* 总成本卡片 */}
@@ -142,7 +52,7 @@ export default function PriceResult({ result }: { result: CalculatePriceResult }
           </button>
         </div>
 
-        {/* 峰值状态 */}
+        {/* 峰值状态（含具体溢价金额，与表格"有效成本"口径呼应） */}
         <div
           className={`mt-3 flex items-center gap-2 rounded-md px-3 py-1.5 text-xs ${
             pi.is_peak_time
@@ -156,7 +66,7 @@ export default function PriceResult({ result }: { result: CalculatePriceResult }
             <span className="opacity-70">
               （{pi.peak_start} - {pi.peak_end}
               {pi.peak_surcharge_rate > 0
-                ? `，峰值溢价 ${fmtPct(pi.peak_surcharge_rate * 100)}`
+                ? `，峰值溢价 +${fmtMoney(b.peak_surcharge)}（${fmtPct(pi.peak_surcharge_rate * 100)}）`
                 : '，无峰值溢价配置'}
               ）
             </span>
@@ -164,15 +74,22 @@ export default function PriceResult({ result }: { result: CalculatePriceResult }
         </div>
       </div>
 
-      {/* 分项明细：主模型 + 所有对比模型同时显示 */}
-      <div className="space-y-2">
-        <h4 className="text-xs font-medium text-text-secondary">
+      {/* 分项明细：单张表格，行=模型，列=成本项（主模型第一行高亮） */}
+      <div>
+        <h4 className="mb-2 text-xs font-medium text-text-secondary">
           分项明细（{comparisons.length + 1} 个模型）
         </h4>
-        {renderBreakdown(result.model_name, b, ci, true)}
-        {comparisons.map((c) =>
-          renderBreakdown(c.model_name, c.breakdown, c.cache_info, false),
-        )}
+        <BreakdownTable
+          rows={[
+            { name: result.model_name, breakdown: b, cacheInfo: ci, isMain: true },
+            ...comparisons.map((c) => ({
+              name: c.model_name,
+              breakdown: c.breakdown,
+              cacheInfo: c.cache_info,
+              isMain: false,
+            })),
+          ]}
+        />
       </div>
 
       {/* 模型对比（排名/差异） */}
