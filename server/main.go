@@ -54,22 +54,29 @@ func main() {
 	tc := tokencalc.New(db)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", handleHealth)
 
-	// 公开接口：AI Token 价格计算器为公开工具，查询与计算无需认证
-	mux.HandleFunc("GET /api/models", tc.HandleListModels)
-	mux.HandleFunc("GET /api/models/{id}", tc.HandleGetModel)
-	mux.HandleFunc("POST /api/calculate-price", tc.HandleCalculatePrice)
+	// 注册 API 路由。除无前缀路径外，同时注册子路径前缀别名：
+	// - 生产 nginx 已剥前缀（proxy_pass 末尾 /），后端收到无前缀路径；
+	// - 本地直连（go run 后浏览器直接访问，无 nginx）时，Vite 产物所有请求
+	//   都带 /token-cost/ 或 /friends/token-cost/ 前缀，API 也需同名别名才能命中。
+	prefixes := []string{"", "/token-cost", "/friends/token-cost"}
+	for _, pre := range prefixes {
+		// 公开接口：AI Token 价格计算器为公开工具，查询与计算无需认证
+		mux.HandleFunc("GET "+pre+"/api/health", handleHealth)
+		mux.HandleFunc("GET "+pre+"/api/models", tc.HandleListModels)
+		mux.HandleFunc("GET "+pre+"/api/models/{id}", tc.HandleGetModel)
+		mux.HandleFunc("POST "+pre+"/api/calculate-price", tc.HandleCalculatePrice)
 
-	// 管理接口：登录公开；其余写操作/价格配置需管理 token
-	mux.HandleFunc("POST /api/admin/login", am.HandleLogin)
-	mux.HandleFunc("POST /api/models", am.RequireAdmin(tc.HandleCreateModel))
-	mux.HandleFunc("PUT /api/models/{id}", am.RequireAdmin(tc.HandleUpdateModel))
-	mux.HandleFunc("DELETE /api/models/{id}", am.RequireAdmin(tc.HandleDeleteModel))
-	mux.HandleFunc("GET /api/models/{id}/prices", am.RequireAdmin(tc.HandleListModelPrices))
-	mux.HandleFunc("POST /api/models/{id}/prices", am.RequireAdmin(tc.HandleCreateModelPrice))
-	mux.HandleFunc("PUT /api/models/{id}/prices/{priceId}", am.RequireAdmin(tc.HandleUpdateModelPrice))
-	mux.HandleFunc("DELETE /api/models/{id}/prices/{priceId}", am.RequireAdmin(tc.HandleDeleteModelPrice))
+		// 管理接口：登录公开；其余写操作/价格配置需管理 token
+		mux.HandleFunc("POST "+pre+"/api/admin/login", am.HandleLogin)
+		mux.HandleFunc("POST "+pre+"/api/models", am.RequireAdmin(tc.HandleCreateModel))
+		mux.HandleFunc("PUT "+pre+"/api/models/{id}", am.RequireAdmin(tc.HandleUpdateModel))
+		mux.HandleFunc("DELETE "+pre+"/api/models/{id}", am.RequireAdmin(tc.HandleDeleteModel))
+		mux.HandleFunc("GET "+pre+"/api/models/{id}/prices", am.RequireAdmin(tc.HandleListModelPrices))
+		mux.HandleFunc("POST "+pre+"/api/models/{id}/prices", am.RequireAdmin(tc.HandleCreateModelPrice))
+		mux.HandleFunc("PUT "+pre+"/api/models/{id}/prices/{priceId}", am.RequireAdmin(tc.HandleUpdateModelPrice))
+		mux.HandleFunc("DELETE "+pre+"/api/models/{id}/prices/{priceId}", am.RequireAdmin(tc.HandleDeleteModelPrice))
+	}
 
 	// 其余 GET 一律走嵌入的前端产物（SPA fallback 到 index.html）
 	mux.HandleFunc("GET /", handleStatic())
@@ -97,13 +104,13 @@ func handleStatic() http.HandlerFunc {
 		// 无此头时浏览器会拦截样式表/脚本（同源也不例外），导致页面无样式。放行任意来源。
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		p := strings.TrimPrefix(r.URL.Path, "/")
+		// 剥离可选的前缀（幂等：无前缀路径不受影响；friends 版与根版双兼容）
+		p = strings.TrimPrefix(p, "friends/token-cost/")
+		p = strings.TrimPrefix(p, "token-cost/")
 		if strings.HasPrefix(p, "api/") {
 			http.NotFound(w, r) // 未注册的 API 路径不回落前端
 			return
 		}
-		// 剥离可选的前缀（幂等：无前缀路径不受影响；friends 版与根版双兼容）
-		p = strings.TrimPrefix(p, "friends/token-cost/")
-		p = strings.TrimPrefix(p, "token-cost/")
 		original := p
 		if p == "" {
 			p = "index.html"

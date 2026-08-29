@@ -151,6 +151,66 @@ func TestCalculatePricePeakTier(t *testing.T) {
 	}
 }
 
+// 峰值模式 peak_mode：不依赖系统时间，强制峰值/谷值，便于快速查看两种价格
+func TestCalculatePricePeakMode(t *testing.T) {
+	db, m1, _ := newCalcDB(t)
+
+	// 强制峰值：即使当前系统时间处于谷期也按峰值价计算
+	peak, err := CalculatePrice(db, PriceCalculationRequest{
+		ModelID:      m1.ID,
+		InputTokens:  1_000_000,
+		OutputTokens: 500_000,
+		CacheHitRate: f64Ptr(0),
+		PeakMode:     PeakModePeak,
+	})
+	if err != nil {
+		t.Fatalf("计算失败: %v", err)
+	}
+	if !peak.PeakInfo.IsPeakTime {
+		t.Fatalf("peak_mode=peak 应强制峰值时段")
+	}
+	if !almostEqual(peak.TotalCost, 0.4) {
+		t.Errorf("强制峰值总成本应 0.4（峰值价），得到 %v", peak.TotalCost)
+	}
+	// 未传 use_custom_hours 时时段信息仍应使用默认 22:00-8:00
+	if peak.PeakInfo.PeakStart != DefaultPeakStart || peak.PeakInfo.PeakEnd != DefaultPeakEnd {
+		t.Errorf("默认时段应为 %s-%s，得到 %s-%s", DefaultPeakStart, DefaultPeakEnd, peak.PeakInfo.PeakStart, peak.PeakInfo.PeakEnd)
+	}
+
+	// 强制谷值：即使当前系统时间处于峰值也按基础价计算
+	off, err := CalculatePrice(db, PriceCalculationRequest{
+		ModelID:      m1.ID,
+		InputTokens:  1_000_000,
+		OutputTokens: 500_000,
+		CacheHitRate: f64Ptr(0),
+		PeakMode:     PeakModeOffPeak,
+	})
+	if err != nil {
+		t.Fatalf("计算失败: %v", err)
+	}
+	if off.PeakInfo.IsPeakTime {
+		t.Fatalf("peak_mode=offpeak 应强制谷值时段")
+	}
+	if !almostEqual(off.TotalCost, 0.28) {
+		t.Errorf("强制谷值总成本应 0.28（基础价），得到 %v", off.TotalCost)
+	}
+
+	// 默认（空值）等价于 auto：IsPeakTime 跟随系统时间，两档价格均可能，只需不报错且时段为默认
+	auto, err := CalculatePrice(db, PriceCalculationRequest{
+		ModelID:      m1.ID,
+		InputTokens:  1_000_000,
+		OutputTokens: 500_000,
+		CacheHitRate: f64Ptr(0),
+		PeakMode:     "",
+	})
+	if err != nil {
+		t.Fatalf("默认模式计算失败: %v", err)
+	}
+	if auto.PeakInfo.PeakStart != DefaultPeakStart || auto.PeakInfo.PeakEnd != DefaultPeakEnd {
+		t.Errorf("auto 模式时段应为默认 %s-%s", DefaultPeakStart, DefaultPeakEnd)
+	}
+}
+
 func TestCalculatePriceValidation(t *testing.T) {
 	db, m1, _ := newCalcDB(t)
 

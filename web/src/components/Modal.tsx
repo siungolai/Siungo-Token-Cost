@@ -14,10 +14,10 @@ export default function Modal({ title, onClose, children }: ModalProps) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-lg border border-neutral-200 bg-white p-5 shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+        className="w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-xl dark:bg-surface-alt"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-3 text-sm font-medium text-neutral-900 dark:text-neutral-100">{title}</h3>
+        <h3 className="mb-3 text-sm font-medium text-text-primary">{title}</h3>
         {children}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { api, ApiError, clearAdminToken, getAdminToken, setAdminToken } from '../api/client'
 import type { AIModelWithPrices, CalculatePriceResult } from '../api/client'
@@ -7,6 +7,7 @@ import ModelManageModal from '../components/tokencalc/ModelManageModal'
 import ModelSelector from '../components/tokencalc/ModelSelector'
 import PriceResult from '../components/tokencalc/PriceResult'
 import TokenInput from '../components/tokencalc/TokenInput'
+import ThemeToggle from '../components/ThemeToggle'
 import { defaultForm } from '../components/tokencalc/form'
 import type { CalculatorForm } from '../components/tokencalc/form'
 import { useModels } from '../hooks/useModels'
@@ -21,9 +22,9 @@ export default function ToolsTokenCalculator() {
 
   // 表单状态（受控，提升到页面层供 ModelSelector/TokenInput 共享）
   const [form, setForm] = useState<CalculatorForm>(defaultForm)
-  const patchForm = useCallback((patch: Partial<CalculatorForm>) => {
-    setForm((prev) => ({ ...prev, ...patch }))
-  }, [])
+  // 表单最新值镜像：切换峰谷模式立即重算时，handleCalculate 需要读到最新表单（setState 异步，闭包读不到）
+  const formRef = useRef(form)
+  formRef.current = form
 
   // 选中的模型 id 集合（支持多选比较；第一个为主模型，其余参与对比）
   const [selectedIds, setSelectedIds] = useState<number[]>([])
@@ -100,43 +101,58 @@ export default function ToolsTokenCalculator() {
     setManageModel(null)
   }
 
-  // 计算：校验 + 调 API + 渲染结果（多选时自动对比，命中率使用各模型配置）
-  const handleCalculate = async () => {
-    if (selectedIds.length === 0) {
-      setError('请先选择模型')
-      return
-    }
-    const inputTokens = Number(form.inputTokens)
-    const outputTokens = Number(form.outputTokens)
-    if (!Number.isFinite(inputTokens) || inputTokens < 0) {
-      setError('输入 token 应为非负数字')
-      return
-    }
-    if (!Number.isFinite(outputTokens) || outputTokens < 0) {
-      setError('输出 token 应为非负数字')
-      return
-    }
-    setCalculating(true)
-    setError('')
-    try {
-      const res = await api.calculatePrice({
-        model_id: selectedIds[0],
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        // cache_hit_rate 不传：使用各模型自己配置的默认命中率
-        use_custom_hours: form.useCustomHours,
-        peak_start: form.useCustomHours ? form.peakStart : undefined,
-        peak_end: form.useCustomHours ? form.peakEnd : undefined,
-        compare_model_ids: selectedIds.slice(1),
-      })
-      setResult(res)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : '计算失败，请重试')
-      setResult(null)
-    } finally {
-      setCalculating(false)
-    }
-  }
+  // 计算：校验 + 调 API + 渲染结果（多选时自动对比，命中率使用各模型配置）。
+  // overrides 用于峰谷模式切换时立即重算：以最新表单为基准合并指定字段，不等待 setState 生效
+  const handleCalculate = useCallback(
+    async (overrides?: Partial<CalculatorForm>) => {
+      const f = overrides ? { ...formRef.current, ...overrides } : formRef.current
+      if (selectedIds.length === 0) {
+        setError('请先选择模型')
+        return
+      }
+      const inputTokens = Number(f.inputTokens)
+      const outputTokens = Number(f.outputTokens)
+      if (!Number.isFinite(inputTokens) || inputTokens < 0) {
+        setError('输入 token 应为非负数字')
+        return
+      }
+      if (!Number.isFinite(outputTokens) || outputTokens < 0) {
+        setError('输出 token 应为非负数字')
+        return
+      }
+      setCalculating(true)
+      setError('')
+      try {
+        const res = await api.calculatePrice({
+          model_id: selectedIds[0],
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          // cache_hit_rate 不传：使用各模型自己配置的默认命中率
+          // peak_mode：auto 跟随系统时间 / peak 强制峰值 / offpeak 强制谷值
+          peak_mode: f.peakMode,
+          compare_model_ids: selectedIds.slice(1),
+        })
+        setResult(res)
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : '计算失败，请重试')
+        setResult(null)
+      } finally {
+        setCalculating(false)
+      }
+    },
+    [selectedIds],
+  )
+
+  // 表单补丁：峰谷模式切换时立即按新模式重算（快速查看峰值/谷值价格）
+  const patchForm = useCallback(
+    (patch: Partial<CalculatorForm>) => {
+      setForm((prev) => ({ ...prev, ...patch }))
+      if ('peakMode' in patch) {
+        void handleCalculate(patch)
+      }
+    },
+    [handleCalculate],
+  )
 
   // 保存当前输入为场景（本地存储；需先选模型；命中率由模型配置提供，场景不保存）
   const handleSaveScenario = async () => {
@@ -188,45 +204,49 @@ export default function ToolsTokenCalculator() {
 
   return (
     // 全屏背景 + flex 纵向布局：内容区撑满剩余高度，footer 始终在页面最底部
-    <div className="flex min-h-screen flex-col bg-neutral-50 dark:bg-neutral-950">
+    <div className="flex min-h-screen flex-col bg-surface">
       <div className="mx-auto w-full max-w-5xl flex-1 px-3 py-6">
       <div className="mt-2 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-medium text-neutral-900 dark:text-neutral-100">
+          <h2 className="text-base font-medium text-text-primary">
             AI Token 价格计算器
           </h2>
-          <p className="mt-1 text-sm text-neutral-400 dark:text-neutral-500">
+          <p className="mt-1 text-sm text-text-secondary">
             模型成本估算 · 缓存命中 · 谷峰价格 · 多模型对比
           </p>
         </div>
         {adminMode ? (
           <span className="flex shrink-0 items-center gap-2">
-            <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-400">
+            <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400">
               管理模式
             </span>
             <button
               type="button"
               onClick={exitAdminMode}
-              className="rounded-md border border-neutral-300 px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              className="rounded-md border border-border px-2 py-1 text-xs text-text-secondary hover:bg-surface-alt hover:text-text-primary"
             >
               退出
             </button>
+            <ThemeToggle />
           </span>
         ) : (
-          <button
-            type="button"
-            onClick={openPasswordModal}
-            aria-label="管理登录"
-            title="管理登录（需要管理密码）"
-            className="shrink-0 rounded-md border border-neutral-300 px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
-          >
-            ⚙ 管理
-          </button>
+          <span className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={openPasswordModal}
+              aria-label="管理登录"
+              title="管理登录（需要管理密码）"
+              className="rounded-md border border-border px-2 py-1 text-xs text-text-secondary hover:bg-surface-alt hover:text-text-primary"
+            >
+              ⚙ 管理
+            </button>
+            <ThemeToggle />
+          </span>
         )}
       </div>
 
       {adminMode && (
-        <p className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-400">
+        <p className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400">
           管理模式：可添加 / 编辑 / 删除模型与价格配置，改动对访客即时生效
         </p>
       )}
@@ -236,9 +256,9 @@ export default function ToolsTokenCalculator() {
         <div className="space-y-3">
           <section
             aria-label="选择模型"
-            className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"
+            className="rounded-lg border border-border bg-surface p-4 dark:bg-surface-alt"
           >
-            <h3 className="mb-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            <h3 className="mb-2 text-sm font-medium text-text-secondary">
               选择模型（可多选比较）
             </h3>
             <ModelSelector
@@ -255,9 +275,9 @@ export default function ToolsTokenCalculator() {
 
           <section
             aria-label="输入用量"
-            className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"
+            className="rounded-lg border border-border bg-surface p-4 dark:bg-surface-alt"
           >
-            <h3 className="mb-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            <h3 className="mb-2 text-sm font-medium text-text-secondary">
               用量与参数
             </h3>
             <TokenInput form={form} onChange={patchForm} />
@@ -266,7 +286,7 @@ export default function ToolsTokenCalculator() {
           {error && (
             <p
               role="alert"
-              className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400"
+              className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
             >
               {error}
             </p>
@@ -275,7 +295,7 @@ export default function ToolsTokenCalculator() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={handleCalculate}
+              onClick={() => handleCalculate()}
               disabled={calculating || selectedIds.length === 0}
               className={`${btnPrimaryCls} flex-1 disabled:cursor-not-allowed disabled:opacity-50`}
             >
@@ -298,7 +318,7 @@ export default function ToolsTokenCalculator() {
           {result ? (
             <PriceResult result={result} />
           ) : (
-            <div className="flex h-full min-h-[300px] items-center justify-center rounded-lg border border-dashed border-neutral-200 text-sm text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
+            <div className="flex h-full min-h-[300px] items-center justify-center rounded-lg border border-dashed border-border text-sm text-text-secondary">
               {calculating ? '计算中…' : '选择模型并输入用量后点击「计算价格」'}
             </div>
           )}
@@ -306,13 +326,13 @@ export default function ToolsTokenCalculator() {
           {/* 场景管理（本地存储） */}
           <section
             aria-label="场景管理"
-            className="mt-3 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900"
+            className="mt-3 rounded-lg border border-border bg-surface p-4 dark:bg-surface-alt"
           >
-            <h3 className="mb-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            <h3 className="mb-2 text-sm font-medium text-text-secondary">
               我的场景
             </h3>
             {scenarios.length === 0 ? (
-              <p className="text-xs text-neutral-400 dark:text-neutral-500">
+              <p className="text-xs text-text-secondary">
                 暂无场景，计算后点击「保存为场景」快速复用（场景仅保存在本机浏览器）
               </p>
             ) : (
@@ -320,7 +340,7 @@ export default function ToolsTokenCalculator() {
                 {scenarios.map((s) => (
                   <li
                     key={s.id}
-                    className="flex items-center justify-between gap-2 rounded-md bg-neutral-50 px-3 py-2 dark:bg-neutral-800/60"
+                    className="flex items-center justify-between gap-2 rounded-md bg-surface-alt px-3 py-2 dark:bg-surface-alt/60"
                   >
                     <button
                       type="button"
@@ -328,11 +348,11 @@ export default function ToolsTokenCalculator() {
                       className="min-w-0 flex-1 text-left"
                       title={`应用场景：${s.input_tokens.toLocaleString()} 入 / ${s.output_tokens.toLocaleString()} 出（命中率用所选模型的配置）`}
                     >
-                      <span className="block truncate text-sm text-neutral-800 dark:text-neutral-200">
+                      <span className="block truncate text-sm text-text-primary">
                         {s.is_favorite ? '★ ' : ''}
                         {s.name}
                       </span>
-                      <span className="block text-[11px] text-neutral-400">
+                      <span className="block text-[11px] text-text-secondary">
                         {s.input_tokens.toLocaleString()} 入 / {s.output_tokens.toLocaleString()} 出
                       </span>
                     </button>
@@ -343,7 +363,7 @@ export default function ToolsTokenCalculator() {
                         className={`rounded px-1.5 py-0.5 text-xs ${
                           s.is_favorite
                             ? 'text-amber-500'
-                            : 'text-neutral-400 hover:text-amber-500'
+                            : 'text-text-secondary hover:text-amber-500'
                         }`}
                         title={s.is_favorite ? '取消收藏' : '收藏'}
                       >
@@ -352,7 +372,7 @@ export default function ToolsTokenCalculator() {
                       <button
                         type="button"
                         onClick={() => handleRemoveScenario(s.id, s.name)}
-                        className="rounded px-1.5 py-0.5 text-xs text-neutral-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                        className="rounded px-1.5 py-0.5 text-xs text-text-secondary hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                         title="删除场景"
                       >
                         删除
@@ -382,7 +402,7 @@ export default function ToolsTokenCalculator() {
             {loginError && (
               <p
                 role="alert"
-                className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400"
+                className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
               >
                 {loginError}
               </p>
@@ -417,7 +437,7 @@ export default function ToolsTokenCalculator() {
       </div>
 
       {/* 免责声明：独立于内容区，始终位于页面最底部 */}
-      <footer className="border-t border-neutral-200 py-3 text-center text-[11px] text-neutral-400 dark:border-neutral-800 dark:text-neutral-500">
+      <footer className="border-t border-border py-3 text-center text-[11px] text-text-secondary">
         所有价格均为人民币（¥/1M tokens），直接填写、无需换算；价格数据仅供参考，请以各服务商官方定价为准
       </footer>
     </div>

@@ -59,7 +59,9 @@ export interface CalculatePriceRequest {
   input_tokens: number // ≥0
   output_tokens: number // ≥0
   cache_hit_rate?: number // 缓存命中率 0-100（缺省 = 用模型配置的命中率）
-  use_custom_hours?: boolean // 自定义谷峰时段
+  peak_mode?: 'auto' | 'peak' | 'offpeak' // 峰值模式：auto 跟随系统时间 / peak 强制峰值 / offpeak 强制谷值
+  // 兼容旧参数（自定义谷峰时段，与 peak_mode 独立）
+  use_custom_hours?: boolean
   peak_start?: string // HH:mm
   peak_end?: string // HH:mm
   compare_model_ids?: number[] // 多模型对比（自动去重、跳过主模型）

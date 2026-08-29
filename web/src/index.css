@@ -1,7 +1,33 @@
+/* 主站（www.siungo.top）同款字体：Inter，加载失败自动回退系统字体 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
-/* Tailwind v4：暗色模式改用 .dark class 控制（而非系统偏好） */
+/* Tailwind v4：暗色模式用 .dark class 控制（而非系统偏好），与主站一致 */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* 主站语义色板（亮色）：surface=页面背景、surface-alt=次级背景/悬停、text-primary=主文字、text-secondary=次要文字、border=边框、primary=强调色。
+   暗色值在 .dark 中覆盖变量，语义类（bg-surface 等）自动切换，与主站暗色 #1a1a1a/#2a2a2a/#333/#e5e5e5/#a3a3a3 完全一致 */
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  --color-surface: #ffffff;
+  --color-surface-alt: #f5f5f5;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #737373;
+  --color-border: #e5e5e5;
+  --color-primary: #1a1a1a;
+  --color-primary-light: #4a4a4a;
+}
+
+.dark {
+  --color-surface: #1a1a1a;
+  --color-surface-alt: #2a2a2a;
+  --color-text-primary: #e5e5e5;
+  --color-text-secondary: #a3a3a3;
+  --color-border: #333333;
+  --color-primary: #e5e5e5;
+  --color-primary-light: #d4d4d4;
+}
 
 :root {
   color-scheme: light dark;
@@ -14,10 +40,6 @@ body {
 
 body {
   -webkit-font-smoothing: antialiased;
-  background-color: #fafafa; /* neutral-50，暗色由页面根容器接管（dark:bg-neutral-950） */
-}
-
-/* 暗色兜底：页面根容器未覆盖到的边缘（如超长滚动）保持与卡片一致 */
-.dark body {
-  background-color: #0a0a0a; /* neutral-950 */
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-surface); /* 亮 #fff / 暗 #1a1a1a，随 .dark 自动切换 */
 }

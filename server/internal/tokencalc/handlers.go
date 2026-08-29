@@ -1,4 +1,4 @@
-﻿// Package tokencalc 实现 AI Token 价格计算工具的 HTTP handlers。
+// Package tokencalc 实现 AI Token 价格计算工具的 HTTP handlers。
 // 数据访问统一在 store 包，本包只做解析、校验与响应编排。
 package tokencalc
 
@@ -206,6 +206,7 @@ func (h *Handler) handleCalculateInput(w http.ResponseWriter, r *http.Request) (
 		UseCustomHours bool     `json:"use_custom_hours"`
 		PeakStart      *string  `json:"peak_start"`
 		PeakEnd        *string  `json:"peak_end"`
+		PeakMode       string   `json:"peak_mode"`
 		CompareModelIDs []int64 `json:"compare_model_ids"`
 	}
 	if !httpx.DecodeJSON(w, r, &req) {
@@ -252,6 +253,14 @@ func (h *Handler) handleCalculateInput(w http.ResponseWriter, r *http.Request) (
 		in.PeakStart = &ps
 		in.PeakEnd = &pe
 	}
+	// 峰值模式：auto（默认）/ peak（强制峰值）/ offpeak（强制谷值）
+	in.PeakMode = req.PeakMode
+	switch in.PeakMode {
+	case "", store.PeakModeAuto, store.PeakModePeak, store.PeakModeOffPeak:
+	default:
+		httpx.WriteError(w, http.StatusBadRequest, "peak_mode 取值：auto / peak / offpeak")
+		return store.PriceCalculationRequest{}, nil, false
+	}
 	// 对比模型 id：去重、去掉非正数与主模型自身
 	seen := make(map[int64]bool, len(req.CompareModelIDs))
 	var compareIDs []int64
@@ -287,7 +296,8 @@ func validTime(s string) bool {
 
 // HandleCalculatePrice 处理 POST /api/calculate-price。
 // 请求体：model_id（必填）、input_tokens/output_tokens（默认 0）、cache_hit_rate（默认 0）、
-// use_custom_hours + peak_start/peak_end（可选）、compare_model_ids（可选，多模型对比）。
+// peak_mode（auto 跟随系统时间 / peak 强制峰值 / offpeak 强制谷值）、compare_model_ids（可选，多模型对比）。
+// 兼容旧参数：use_custom_hours + peak_start/peak_end（自定义时段，与 peak_mode 独立）。
 func (h *Handler) HandleCalculatePrice(w http.ResponseWriter, r *http.Request) {
 	in, compareIDs, ok := h.handleCalculateInput(w, r)
 	if !ok {

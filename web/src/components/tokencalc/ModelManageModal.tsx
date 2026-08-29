@@ -61,7 +61,7 @@ function PriceField({
 }) {
   return (
     <label className="block min-w-0 flex-1">
-      <span className="mb-0.5 block text-[11px] text-neutral-500 dark:text-neutral-400">
+      <span className="mb-0.5 block text-[11px] text-text-secondary">
         {label}
       </span>
       <span className="relative block">
@@ -75,7 +75,7 @@ function PriceField({
           onChange={(e) => onChange(e.target.value)}
           inputMode="decimal"
         />
-        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-neutral-400">
+        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-text-secondary">
           ¥/M
         </span>
       </span>
@@ -142,12 +142,12 @@ function PriceRow({
   }
 
   return (
-    <div className="space-y-1.5 rounded-md bg-neutral-50 px-3 py-2 dark:bg-neutral-800/60">
+    <div className="space-y-1.5 rounded-md bg-surface-alt px-3 py-2 dark:bg-surface-alt/60">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300">
+        <span className="text-xs font-medium text-text-primary">
           {PRICE_TYPE_LABEL[price.price_type]}
           {price.time_range && (
-            <span className="ml-1.5 text-[10px] text-neutral-400">{price.time_range}</span>
+            <span className="ml-1.5 text-[10px] text-text-secondary">{price.time_range}</span>
           )}
         </span>
         <span className="flex gap-1">
@@ -155,14 +155,14 @@ function PriceRow({
             type="button"
             onClick={save}
             disabled={saving}
-            className="rounded px-1.5 py-0.5 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-50 dark:hover:bg-neutral-700 dark:hover:text-neutral-200"
+            className="rounded px-1.5 py-0.5 text-xs text-text-secondary hover:bg-surface-alt hover:text-text-primary disabled:opacity-50"
           >
             {saving ? '…' : '保存'}
           </button>
           <button
             type="button"
             onClick={remove}
-            className="rounded px-1.5 py-0.5 text-xs text-neutral-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+            className="rounded px-1.5 py-0.5 text-xs text-text-secondary hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
           >
             删除
           </button>
@@ -317,7 +317,7 @@ export default function ModelManageModal({
           placeholder="服务商（如 DeepSeek / OpenAI）"
         />
         <div className="space-y-2">
-          <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+          <p className="text-xs font-medium text-text-secondary">
             基础价格（¥/1M tokens，人民币每百万 token）
           </p>
           <div className="flex flex-wrap items-end gap-2">
@@ -340,17 +340,17 @@ export default function ModelManageModal({
               placeholder="1.88"
             />
           </div>
-          <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
+          <p className="text-[11px] text-text-secondary">
             命中输入价 ≤ 0 时按未命中价计算（无缓存优惠）
           </p>
         </div>
         {/* 默认缓存命中率 */}
         <div>
           <div className="mb-0.5 flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+            <span className="text-xs font-medium text-text-secondary">
               默认缓存命中率
             </span>
-            <span className="text-xs tabular-nums text-neutral-600 dark:text-neutral-300">
+            <span className="text-xs tabular-nums text-text-primary">
               {form.cacheHitRate}%
             </span>
           </div>
@@ -361,10 +361,10 @@ export default function ModelManageModal({
             step={1}
             value={form.cacheHitRate}
             onChange={(e) => set({ cacheHitRate: Number(e.target.value) })}
-            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-neutral-200 accent-neutral-900 dark:bg-neutral-700 dark:accent-neutral-100"
+            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-border accent-primary"
             aria-label="默认缓存命中率"
           />
-          <p className="mt-0.5 text-[11px] text-neutral-400 dark:text-neutral-500">
+          <p className="mt-0.5 text-[11px] text-text-secondary">
             计算时若未单独指定命中率，将使用此值（命中部分输入按命中价计价）
           </p>
         </div>
@@ -386,12 +386,12 @@ export default function ModelManageModal({
 
         {/* 价格配置管理（仅编辑模式） */}
         {model && (
-          <div className="space-y-1.5 rounded-md border border-neutral-200 p-2.5 dark:border-neutral-700">
-            <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+          <div className="space-y-1.5 rounded-md border border-border p-2.5">
+            <p className="text-xs font-medium text-text-secondary">
               谷峰/自定义价格（每个价格独立填写）
             </p>
             {prices.length === 0 && (
-              <p className="text-xs text-neutral-400">暂无额外配置（默认使用基础价）</p>
+              <p className="text-xs text-text-secondary">暂无额外配置（默认使用基础价）</p>
             )}
             {prices.map((p) => (
               <PriceRow
@@ -402,11 +402,11 @@ export default function ModelManageModal({
                 onError={onError}
               />
             ))}
-            <div className="space-y-1.5 rounded-md border border-dashed border-neutral-300 p-2 dark:border-neutral-700">
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">添加配置</p>
+            <div className="space-y-1.5 rounded-md border border-dashed border-border p-2">
+              <p className="text-xs text-text-secondary">添加配置</p>
               <div className="flex items-center gap-2">
                 <select
-                  className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+                  className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs dark:bg-surface-alt"
                   value={newPriceType}
                   onChange={(e) => setNewPriceType(e.target.value as 'peak' | 'custom')}
                   aria-label="价格类型"
@@ -418,7 +418,7 @@ export default function ModelManageModal({
                   type="button"
                   onClick={addPrice}
                   disabled={addingPrice}
-                  className="shrink-0 rounded-md border border-neutral-300 px-2.5 py-1.5 text-xs text-neutral-600 hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  className="shrink-0 rounded-md border border-border px-2.5 py-1.5 text-xs text-text-primary hover:bg-surface-alt disabled:opacity-50"
                 >
                   {addingPrice ? '…' : '+ 添加'}
                 </button>
@@ -438,7 +438,7 @@ export default function ModelManageModal({
               type="button"
               onClick={handleDelete}
               disabled={deleting}
-              className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
+              className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
             >
               {deleting ? '删除中…' : '删除模型'}
             </button>

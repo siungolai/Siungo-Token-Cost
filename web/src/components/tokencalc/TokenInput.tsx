@@ -17,7 +17,7 @@ interface TokenInputProps {
 // 区块标题
 function SectionTitle({ children }: { children: string }) {
   return (
-    <h4 className="mb-1.5 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+    <h4 className="mb-1.5 text-xs font-medium text-text-secondary">
       {children}
     </h4>
   )
@@ -39,7 +39,7 @@ function NumberField({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-neutral-500 dark:text-neutral-400">{label}</span>
+      <span className="mb-1 block text-xs text-text-secondary">{label}</span>
       <span className="relative block">
         <input
           type="number"
@@ -52,7 +52,7 @@ function NumberField({
           inputMode="numeric"
         />
         {suffix && (
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400">
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-secondary">
             {suffix}
           </span>
         )}
@@ -139,7 +139,7 @@ export default function TokenInput({ form, onChange }: TokenInputProps) {
             上传文件
           </button>
           {uploadedName && (
-            <span className="min-w-0 truncate text-xs text-neutral-500 dark:text-neutral-400">
+            <span className="min-w-0 truncate text-xs text-text-secondary">
               {uploadedName} → 已填入输入 token
             </span>
           )}
@@ -149,65 +149,57 @@ export default function TokenInput({ form, onChange }: TokenInputProps) {
             {fileError}
           </p>
         )}
-        <p className="mt-1 text-[11px] text-neutral-400 dark:text-neutral-500">
+        <p className="mt-1 text-[11px] text-text-secondary">
           按文本长度粗略估算（约 3 字符/token），输出 token 请手动填写
         </p>
       </div>
 
-      {/* 谷峰时段 */}
+      {/* 谷峰时段：三态按钮手动切换（快速查看峰值/谷值价格），auto 跟随系统时间 */}
       <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <SectionTitle>谷峰时段</SectionTitle>
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
-            <input
-              type="checkbox"
-              checked={form.useCustomHours}
-              onChange={(e) => onChange({ useCustomHours: e.target.checked })}
-              className="h-3.5 w-3.5 accent-neutral-900 dark:accent-neutral-100"
-            />
-            自定义
-          </label>
+        <SectionTitle>谷峰时段</SectionTitle>
+        <div
+          className="flex overflow-hidden rounded-md border border-border"
+          role="group"
+          aria-label="峰值模式"
+        >
+          {(
+            [
+              { value: 'auto', label: '自动' },
+              { value: 'peak', label: '峰值' },
+              { value: 'offpeak', label: '谷值' },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange({ peakMode: opt.value })}
+              aria-pressed={form.peakMode === opt.value}
+              className={`flex-1 px-2 py-1.5 text-xs transition-colors ${
+                form.peakMode === opt.value
+                  ? 'bg-primary text-white dark:bg-[#e5e5e5] dark:text-[#1a1a1a]'
+                  : 'bg-surface text-text-secondary hover:bg-surface-alt hover:text-text-primary'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
-        {form.useCustomHours ? (
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="mb-1 block text-xs text-neutral-500 dark:text-neutral-400">
-                峰值开始
-              </span>
-              <input
-                type="time"
-                className={inputSmCls}
-                value={form.peakStart}
-                onChange={(e) => onChange({ peakStart: e.target.value })}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-neutral-500 dark:text-neutral-400">
-                峰值结束
-              </span>
-              <input
-                type="time"
-                className={inputSmCls}
-                value={form.peakEnd}
-                onChange={(e) => onChange({ peakEnd: e.target.value })}
-              />
-            </label>
-          </div>
-        ) : (
-          <p className="rounded-md bg-neutral-100 px-3 py-2 text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
-            默认峰值时段 <span className="tabular-nums">22:00 – 次日 08:00</span>
-            （溢价率由各模型配置决定）
-          </p>
-        )}
+        <p className="mt-1 text-[11px] text-text-secondary">
+          {form.peakMode === 'peak'
+            ? '已强制按峰值价格计算（不受系统时间影响）'
+            : form.peakMode === 'offpeak'
+              ? '已强制按谷值价格计算（不受系统时间影响）'
+              : '跟随系统时间自动判定（默认 22:00 – 次日 08:00 为峰值时段）'}
+        </p>
       </div>
 
       {/* 场景预设 */}
       <div>
         <SectionTitle>场景预设</SectionTitle>
         {scenariosLoading ? (
-          <p className="text-xs text-neutral-400">加载中…</p>
+          <p className="text-xs text-text-secondary">加载中…</p>
         ) : scenarios.length === 0 ? (
-          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+          <p className="text-xs text-text-secondary">
             还没有预设场景，可在计算结果页保存常用场景
           </p>
         ) : (

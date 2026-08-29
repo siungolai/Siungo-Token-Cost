@@ -15,10 +15,18 @@ type PriceCalculationRequest struct {
 	InputTokens    int64    `json:"input_tokens"`     // 输入 token 数（≥0）
 	OutputTokens   int64    `json:"output_tokens"`    // 输出 token 数（≥0）
 	CacheHitRate   *float64 `json:"cache_hit_rate"`   // 缓存命中率 0-100（缺省 = 用模型配置的命中率）
-	UseCustomHours bool     `json:"use_custom_hours"` // 是否使用自定义谷峰时段
+	UseCustomHours bool     `json:"use_custom_hours"` // 是否使用自定义谷峰时段（兼容旧调用方）
 	PeakStart      *string  `json:"peak_start"`       // 自定义峰值开始 (HH:mm)
 	PeakEnd        *string  `json:"peak_end"`         // 自定义峰值结束 (HH:mm)
+	PeakMode       string   `json:"peak_mode"`        // 峰值模式：auto（默认，跟随系统时间）/ peak（强制峰值价）/ offpeak（强制谷值价）
 }
+
+// PeakMode 峰值模式取值。
+const (
+	PeakModeAuto    = "auto"    // 跟随系统时间自动判定（默认）
+	PeakModePeak    = "peak"    // 强制按峰值价计算（快速查看峰值价格）
+	PeakModeOffPeak = "offpeak" // 强制按谷值价计算（快速查看谷值价格）
+)
 
 // PriceCalculationResult 价格计算结果
 type PriceCalculationResult struct {
@@ -138,7 +146,7 @@ func CalculatePrice(db *sql.DB, req PriceCalculationRequest) (*PriceCalculationR
 		return nil, fmt.Errorf("获取自定义价格失败: %w", err)
 	}
 
-	// 峰值时段判断
+	// 峰值时段判断：peak_mode=peak/offpeak 时强制指定（快速查看峰值/谷值价格），auto 跟随系统时间
 	peakInfo := PeakInfo{
 		PeakStart: DefaultPeakStart,
 		PeakEnd:   DefaultPeakEnd,
@@ -146,9 +154,18 @@ func CalculatePrice(db *sql.DB, req PriceCalculationRequest) (*PriceCalculationR
 	if req.UseCustomHours {
 		peakInfo.PeakStart = *req.PeakStart
 		peakInfo.PeakEnd = *req.PeakEnd
-		peakInfo.IsPeakTime = isInPeakTimeCustom(time.Now(), *req.PeakStart, *req.PeakEnd)
-	} else {
-		peakInfo.IsPeakTime = isInPeakTimeDefault(time.Now())
+	}
+	switch req.PeakMode {
+	case PeakModePeak:
+		peakInfo.IsPeakTime = true
+	case PeakModeOffPeak:
+		peakInfo.IsPeakTime = false
+	default: // PeakModeAuto / 空值
+		if req.UseCustomHours {
+			peakInfo.IsPeakTime = isInPeakTimeCustom(time.Now(), *req.PeakStart, *req.PeakEnd)
+		} else {
+			peakInfo.IsPeakTime = isInPeakTimeDefault(time.Now())
+		}
 	}
 	// 峰值溢价率估算：以未命中输入价对比基础价（未配置时 0）
 	if peakPrice != nil && peakPrice.InputMissPrice > 0 && base.inputMiss > 0 {
