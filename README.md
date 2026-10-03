@@ -1,8 +1,14 @@
 # siungo-token-cost
 
 > Public, self-hosted AI token price calculator: estimate LLM API costs in **CNY (¥) per 1M tokens** — cached input / uncached input / output — with cache-hit rates, manual peak/off-peak toggle, day/night theme and multi-model comparison tables.
+>
+> **部署地址**：<https://www.siungo.top/friends/token-cost/> · Go 后端 + React 前端（例外：非纯静态项目）
+>
+> **中文版**：[README.zh-CN.md](README.zh-CN.md)
+>
+> **相关项目**：[摄影工具箱](../../photography-toolbox/README.md) · [IT 工具箱](../../it-toolbox/README.md) · [圈叉棋](../../tic-tac-toe/README.md) · [五子棋](../../gomoku/README.md) · [中国象棋](../../xiangqi/README.md) · [恩尼格玛机](../../enigma/README.md)
 
-**中文版**：[README.zh-CN.md](README.zh-CN.md)
+---
 
 ## Screenshot
 
