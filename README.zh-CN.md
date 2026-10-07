@@ -41,6 +41,19 @@ npm run dev
 
 > **子路径部署**：`web/vite.config.ts` 的 `base` 必须与 nginx location 一致（如 `https://www.siungo.top/friends/token-cost/`）。API 客户端从同一 base 解析 `/api`，请求始终带子路径前缀，不会被站点其他 `/api` 反代规则接管。
 
+### 3. 构建与检查
+
+```bash
+cd web && npm ci          # 全新 clone 只需一次
+bash scripts/check.sh     # 唯一权威入口，CI 跑的就是这一条
+```
+
+`scripts/check.sh` 先构建前端，把 `web/dist` 同步进 `server/static/`，再跑
+`go build ./... && go vet ./... && go test ./...`。**这个顺序不能换**：
+`server/main.go:21` 是 `//go:embed all:static`，而 `server/static/` 不入库，
+所以全新 clone 里必须先有前端产物、后端才编译得起来。
+`scripts/build.sh` 是对应的部署脚本（额外交叉编译 linux/amd64 单二进制）。
+
 ## 许可证
 
 [Apache-2.0](LICENSE) © 2026 Siungo

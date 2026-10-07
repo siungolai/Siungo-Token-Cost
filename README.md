@@ -47,6 +47,20 @@ npm run dev
 
 > **Sub-path deployment**: `base` in `web/vite.config.ts` must match your nginx location (e.g. `https://www.siungo.top/friends/token-cost/`). The API client resolves `/api` from the same base, so requests stay within the sub-path and are not caught by other `/api` reverse-proxy rules.
 
+### 3. Build & checks
+
+```bash
+cd web && npm ci          # once, in a fresh clone
+bash scripts/check.sh     # the single entry point — CI runs exactly this
+```
+
+`scripts/check.sh` builds the frontend, syncs `web/dist` into `server/static/`, then runs
+`go build ./... && go vet ./... && go test ./...`. The order is not optional:
+`server/main.go:21` is `//go:embed all:static` while `server/static/` is gitignored, so a
+fresh clone cannot compile the backend before the frontend has been built.
+`scripts/build.sh` is the deployment counterpart — it additionally cross-compiles the
+linux/amd64 single binary.
+
 ## License
 
 [Apache-2.0](LICENSE) © 2026 Siungo

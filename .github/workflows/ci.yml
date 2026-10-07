@@ -1,0 +1,44 @@
+# siungo-token-cost 的 CI。
+#
+# 跑的就是 README「Quick Start / 快速开始」末尾那一条 `bash scripts/check.sh`
+# （前端构建 → 同步到 server/static → 后端 go build/vet/test），本机能过的这里就能过。
+# 改这里时记得同步改脚本，别只改一边。
+#
+# 为什么是一个 job：check.sh 是一条**有顺序**的链——server/main.go:21 是
+# `//go:embed all:static`，而 server/static/ 不入库，所以必须先出前端产物、
+# 再编译后端。拆成两个平行 job 会直接编译失败。
+#
+# 注意分支是 master（这个仓不是 main）；它是公开仓，Actions 额度不占用套餐分钟数。
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  check:
+    name: 检查 · 前端构建 / embed 同步 / Go 构建与测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache: true
+          cache-dependency-path: server/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # scripts/check.sh 只检查 node_modules 在不在，不会替我们装依赖
+      - name: 装前端依赖
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+
+      - name: 统一检查（scripts/check.sh）
+        run: bash scripts/check.sh
