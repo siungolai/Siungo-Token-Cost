@@ -142,6 +142,15 @@ PROBE_BODY_LIMIT=1048576
 # （admin.go:63-66），且**没有 Retry-After**。
 PROBE_LOGIN_PATH="/api/admin/login"
 PROBE_LOGIN_BODY='{"password":"spec-probe-wrong-__I__"}'
+# ── 后半 5 条（A1.1 / A1.11 / A1.12 / A1.14 / A3.11）需要的站点声明 ──────────
+# ⚠️ 清单里的路径探针是**用 GET 打**的（A1.1 判的是"这个路径存不存在"，不挑方法），
+# 所以只能放 GET 能命中的：/api/calculate-price 是 POST-only（server/main.go:68）⟹ 会 404 假红。
+PROBE_API_PATHS="/api/models /api/models/000000"
+PROBE_HEALTH_PATH="/api/health"
+# A1.11/A1.12 不给 PROBE_SESSION_LOGIN_PATH：会话是 sessionStorage 里的 HMAC Bearer
+# （web/src/api/client.ts:3,7-15），零 Set-Cookie ⟹ 探针如实走 N/A。
+# A1.14：登录限流按密码尝试（server/internal/admin/admin.go:27-29，5 次/10 分钟）⟹ 不声明。
+# A3.11：没有上传端点（application.md:414 原话：token-cost 没有上传，不涉及）⟹ 不声明。
 
 # A2.6：空库跑通全部迁移。本站是单条幂等 `CREATE TABLE IF NOT EXISTS`（store.go:48），
 # 而 seed_test.go:10-21 的 newSeedTestDB 就是在 t.TempDir() 的空库上 Open+Migrate 再 Seed
