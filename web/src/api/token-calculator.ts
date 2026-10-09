@@ -192,6 +192,8 @@ export interface AdminLoginResult {
   expires_at: string
 }
 
+// 豁免 401 集中处理：密码错也是 401，不能触发"会话失效"（否则登录框会把自己关掉、
+// 刚输的密码丢掉）—— A4.5 点名要豁免的两类调用点之一。
 export function adminLogin(password: string) {
-  return request<AdminLoginResult>('POST', '/admin/login', { password })
+  return request<AdminLoginResult>('POST', '/admin/login', { password }, { authRedirect: false })
 }

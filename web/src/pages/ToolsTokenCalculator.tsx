@@ -1,6 +1,13 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { api, ApiError, clearAdminToken, getAdminToken, setAdminToken } from '../api/client'
+import {
+  api,
+  ApiError,
+  clearAdminToken,
+  getAdminToken,
+  setAdminToken,
+  UNAUTHORIZED_EVENT,
+} from '../api/client'
 import type { AIModelWithPrices, CalculatePriceResult } from '../api/client'
 import Modal from '../components/Modal'
 import ModelManageModal from '../components/tokencalc/ModelManageModal'
@@ -54,18 +61,24 @@ export default function ToolsTokenCalculator() {
   // 模型管理弹层：'new' = 新建；AIModelWithPrices = 编辑
   const [manageModel, setManageModel] = useState<AIModelWithPrices | 'new' | null>(null)
 
-  // handleAdminError 统一处理管理写操作错误：401 → 退出管理模式并提示重新登录
-  const handleAdminError = useCallback((err: unknown, fallback: string) => {
-    const status = err instanceof ApiError ? err.status : 0
-    const msg = err instanceof ApiError ? err.message : fallback
-    if (status === 401 || msg.includes('管理凭证')) {
-      clearAdminToken()
+  // 管理写操作失败的页面级提示。401 不在这里判 —— 它由封装模块统一处理
+  // （清 sessionStorage 里的管理 token + 派发 UNAUTHORIZED_EVENT，见下面那个监听）。
+  const handleAdminError = useCallback((msg: string) => {
+    setError(msg)
+  }, [])
+
+  // 会话失效（管理 token 24 小时后过期，或服务端判定凭证无效）：退出管理模式并弹回
+  // 「管理登录」，在登录框里写清原因 —— 修的就是"过期后请求静默失败、用户看到点了没反应"。
+  useEffect(() => {
+    const onUnauthorized = () => {
       setAdminMode(false)
       setManageModel(null)
-      setError('管理凭证已过期，请重新登录')
-      return
+      setAdminPassword('')
+      setLoginError('管理登录已过期，请重新登录')
+      setPasswordOpen(true)
     }
-    setError(msg)
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
   }, [])
 
   const openPasswordModal = () => {
@@ -433,7 +446,7 @@ export default function ToolsTokenCalculator() {
           onSaved={() => {
             refreshModels()
           }}
-          onError={(msg) => handleAdminError(new ApiError(0, msg), msg)}
+          onError={handleAdminError}
         />
       )}
       </div>
