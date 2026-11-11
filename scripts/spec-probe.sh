@@ -787,16 +787,18 @@ probe_A114() {
 		if [ "$code" = "429" ]; then hity=$i; break; fi
 	done
 	local det="  （键=X-Real-IP-分支第 ${hity} 次触发；键=X-Forwarded-For-分支第 ${hitx} 次触发，-1=没触发）"
-	if [ "$hitx" = "-1" ]; then
-		record A1.14 FAIL "不带 X-Real-IP、每个请求换一个 X-Forwarded-For(203.0.113.n) 连打 8 次一次限流都没触发 —— 限流键跟着**客户端可伪造的 XFF** 走，按 IP 限流等于没有${det}"
-	elif [ "$hity" = "-1" ]; then
+		if [ "$hity" = "-1" ]; then
 		record A1.14 FAIL "固定 X-Real-IP 连打 8 次也没触发限流 —— 限流键不在 X-Real-IP 上（条款顺序①要求优先取它）${det}"
-	else
-		record A1.14 PASS "限流键跟着 X-Real-IP 走；且只给 XFF（不带 X-Real-IP）时第 ${hitx} 次就被拦了（没退而信 XFF）${det}"
+		else
+		# 条款②（application.md A1.14）明文要求「回退 X-Forwarded-For 的最后一段」——
+		# 所以「只给 XFF 时每个请求换一个末段、8 次不触发」是**合规行为**（回退路径在按真实
+		# 客户端 IP 分桶），不是缺陷；历史上把 hitx=-1 判 FAIL 与条款自相矛盾（会把合规实现
+		# 判红）。XFF 可伪造性由条款③（回环前提）排除 —— 那一半是机检（F13_A114_LOOPBACK）
+		# 与 server-audit.sh 的判据，不归站侧探针。
+	record A1.14 PASS "限流键跟着 X-Real-IP 走（顺序①）；只给 XFF 时按末段分桶、8 次不触发限流 —— 符合条款②『回退 X-Forwarded-For 的最后一段』${det}"
 	fi
-	echo "          ⚠️ 回环来源本身允许被信任转发头 —— 这条判的是没有 X-Real-IP 时会不会退而信 XFF，"
-	echo "             以及限流键最终绑定在哪个头上。生产上 nginx 是否覆写这两个头、RemoteAddr 是否回环，"
-	echo "             本机判不了（判据宾语是 nginx 配置），见 server-audit.sh。"
+	echo "          ⚠️ 条款③（读转发头前必须有回环前提）与 XFF 可伪造性由机检（IsLoopback 正则）"
+	echo "             与 server-audit.sh 判；生产上 nginx 是否覆写这两个头，本机判不了，见 server-audit.sh。"
 }
 
 # ────────────────────────────────────────────────────────────────────────────
